@@ -42,18 +42,28 @@ exports.getItemById = async (req, res) => {
 	}
 };
 
+function getReorderLevel(stock) {
+	if (stock >= 50) return 3; // plentiful
+	if (stock >= 15 && stock < 50) return 2; // getting low
+	return 1; // reorder immediately
+}
+
 // Update an item by ID
 exports.updateItem = async (req, res) => {
 	try {
-		const { item_name, stock, supplier, reorder_level } = req.body;
+		const { item_name, stock, supplier } = req.body;
+		const reorder_level = getReorderLevel(stock);
+
 		const updatedItem = await Item.findByIdAndUpdate(
 			req.params.id,
 			{ item_name, stock, supplier, reorder_level },
 			{ new: true }
 		);
+
 		if (!updatedItem) {
 			return res.status(404).json({ message: "Item not found" });
 		}
+
 		res.status(200).json(updatedItem);
 	} catch (error) {
 		res.status(500).json({ message: "Error updating item", error });
