@@ -9,11 +9,25 @@ exports.createSale = async (req, res) => {
 		const sale = new Sale(req.body);
 		await sale.save();
 
-		// Update the stock for each item sold
+		// Update the stock and reorder level for each item sold
 		for (const soldItem of sale.items) {
-			await Item.findByIdAndUpdate(soldItem.item_id, {
-				$inc: { stock: -soldItem.quantity },
-			});
+			const item = await Item.findByIdAndUpdate(
+				soldItem.item_id,
+				{ $inc: { stock: -soldItem.quantity } },
+				{ new: true }
+			);
+
+			// Check if the reorder level needs updating based on new stock
+			if (item.stock >= 50) {
+				item.reorder_level = 3; // plentiful
+			} else if (item.stock >= 15) {
+				item.reorder_level = 2; // getting low
+			} else {
+				item.reorder_level = 1; // reorder immediately
+			}
+
+			// Save the updated item with the new reorder level
+			await item.save();
 		}
 
 		res.status(201).json(sale);
@@ -21,6 +35,7 @@ exports.createSale = async (req, res) => {
 		res.status(400).json({ message: error.message });
 	}
 };
+
 
 // Get all sales
 exports.getAllSales = async (req, res) => {
