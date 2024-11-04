@@ -80,11 +80,25 @@ exports.deleteSale = async (req, res) => {
 		const sale = await Sale.findByIdAndDelete(req.params.id);
 		if (!sale) return res.status(404).json({ message: "Sale not found" });
 
-		// Adjust stock back for each deleted sale
+		// Adjust stock and reorder level back for each deleted sale
 		for (const soldItem of sale.items) {
-			await Item.findByIdAndUpdate(soldItem.item_id, {
-				$inc: { stock: soldItem.quantity },
-			});
+			const item = await Item.findByIdAndUpdate(
+				soldItem.item_id,
+				{ $inc: { stock: soldItem.quantity } },
+				{ new: true }
+			);
+
+			// Check if the reorder level needs updating based on new stock
+			if (item.stock >= 50) {
+				item.reorder_level = 3; // plentiful
+			} else if (item.stock >= 15) {
+				item.reorder_level = 2; // getting low
+			} else {
+				item.reorder_level = 1; // reorder immediately
+			}
+
+			// Save the updated item with the new reorder level
+			await item.save();
 		}
 
 		res.status(200).json({ message: "Sale deleted" });
@@ -92,6 +106,7 @@ exports.deleteSale = async (req, res) => {
 		res.status(500).json({ message: error.message });
 	}
 };
+
 
 // Get frequently sold items with weekly, monthly, and yearly totals
 exports.getFrequentlySoldItems = async (req, res) => {
